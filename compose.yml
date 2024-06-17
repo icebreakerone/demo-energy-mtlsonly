@@ -16,8 +16,6 @@ services:
       context: resource
     stop_signal: SIGINT
     env_file: resource/.env
-    environment:
-      - ISSUER_URL=https://host.docker.internal:8000 # As accounting app is outside docker we'll need to use this address
     command:
       [
         "uvicorn",
