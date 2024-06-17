@@ -8,13 +8,9 @@ from fastapi import FastAPI, HTTPException, Response, Depends, Header
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi import Request
 
-from . import models
-from . import auth
 from . import conf
 
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-
-security = HTTPBearer(auto_error=False)
 
 
 app = FastAPI(
@@ -57,28 +53,3 @@ def request_info(
         response["client_subject"] = cert.subject.rfc4514_string()
     return response
 
-
-@app.get("/api/v1/consumption", response_model=models.MeterData)
-def consumption(
-    response: Response,
-    token: HTTPAuthorizationCredentials = Depends(security),
-    x_amzn_mtls_clientcert: Annotated[str | None, Header()] = None,
-    x_fapi_interaction_id: Annotated[str | None, Header()] = None,
-):
-    if x_amzn_mtls_clientcert is None:
-        raise HTTPException(status_code=401, detail="No client certificate provided")
-    if token and token.credentials:
-        try:
-            _, headers = auth.introspect(
-                x_amzn_mtls_clientcert, token.credentials, x_fapi_interaction_id
-            )
-        except auth.AccessTokenValidatorError as e:
-            raise HTTPException(status_code=401, detail=str(e))
-        else:
-            for key, value in headers.items():
-                response.headers[key] = value
-    else:
-        raise HTTPException(status_code=401, detail="No token provided")
-    with open(f"{ROOT_DIR}/data/7_day_consumption.json") as f:
-        data = json.load(f)
-    return {"data": data}
