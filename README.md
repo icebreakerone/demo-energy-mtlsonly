@@ -24,29 +24,18 @@ pipenv run uvicorn api.main:app --reload
 
 ## Creating self-signed certificates
 
-The docker compose and client.py scripts require a set of self-signed certificates in a certs/ folder. These can be generated using the `certmaker.sh` script in the `scripts` directory.
+The server and clients require a set of self-signed certificates in a certs/ folder. These can be generated using the `certmaker.sh` script in the `scripts` directory.
 
 ```bash
-cd scripts
-./certmaker.sh
+mkdir certs
+cd certs/
+sh ../scripts/certmaker.sh 
+cd ..
 ```
-
-You will need to create a "certs" directory in the root of the project, and move the generated certificates into it.
 
 ### Using client certificates
 
 Most of the endpoints require a client certificate to be presented. As the directory service is not yet available, the contents of the certificate will not be checked with an external, so any valid certificate will be acceptable. The certificate **is** used to confirm identity, so the same one must be presented in all requests.
-
-## Creating signing certificates
-
-A separate set of certificates are required for signing JWTs. These can be generated using the `signingcerts.sh` script in the `scripts` directory.
-
-```bash
-cd scripts
-./signingcerts.sh
-```
-
-The default configuration will expect these certificate to be in authentication/api/certs. The location can be changed by setting the DIRECTORY_CERTIFICATE and DIRECTORY_PRIVATE_KEY environment variables.
 
 ## Running the local docker environment
 
@@ -61,5 +50,7 @@ The environment variables in the docker compose file point to the FAPI api runni
 ## Testing the API with curl
 
 ```bash
-curl --cert certs/client-cert.pem --key certs/client-key.pem --cacert certs/ca-cert.pem  https://`hostname`:8010/api/v1/info
+curl --cert certs/6-application-one-bundle.pem --key certs/6-application-one-key.pem --cacert certs/1-server-ca-cert.pem  https://`hostname`:8010/api/v1/info
+
+curl --cert certs/7-application-two-bundle.pem --key certs/7-application-two-key.pem --cacert certs/1-server-ca-cert.pem  https://`hostname`:8010/api/v1/info
 ```
