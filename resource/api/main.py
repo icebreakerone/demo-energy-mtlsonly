@@ -1,5 +1,7 @@
 import json
 import os
+from cryptography import x509
+from urllib.parse import unquote
 from typing import Annotated
 
 from fastapi import FastAPI, HTTPException, Response, Depends, Header
@@ -34,11 +36,14 @@ def api_urls():
 
 # @app.get("/api/v1/info")
 @app.get("/api/v1/info")
-def request_info(request: Request):
+def request_info(
+    request: Request,
+    x_amzn_mtls_clientcert: Annotated[str | None, Header()] = None,
+):
     """Return full details about the received request, including http and https headers
     Useful for testing and debugging
     """
-    return {
+    response = {
         "request": {
             "headers": dict(request.headers),
             "method": request.method,
@@ -47,6 +52,10 @@ def request_info(request: Request):
         },
         # "environ": str(request.environ),
     }
+    if x_amzn_mtls_clientcert is not None:
+        cert = x509.load_pem_x509_certificate(bytes(unquote(x_amzn_mtls_clientcert), 'utf-8'))
+        response["client_subject"] = cert.subject.rfc4514_string()
+    return response
 
 
 @app.get("/api/v1/consumption", response_model=models.MeterData)
