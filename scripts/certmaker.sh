@@ -8,7 +8,7 @@ openssl req -new -x509 -key ca-key.pem -out ca-cert.pem -subj "/C=GB/ST=London/O
 openssl genpkey -algorithm RSA -out server-key.pem
 
 # Generate server CSR
-openssl req -new -key server-key.pem -out server-csr.pem -subj "/C=GB/ST=London/O=Perseus Demo Authentication/CN=perseus-demo-authentication.ib1.org"
+openssl req -new -key server-key.pem -out server-csr.pem -subj "/C=GB/ST=London/O=Perseus Demo Authentication/CN=icebreakerone"
 
 # Sign the server CSR with CA key and certificate
 openssl x509 -req -in server-csr.pem -out server-cert.pem -CA ca-cert.pem -CAkey ca-key.pem -CAcreateserial -days 365
