@@ -54,3 +54,9 @@ curl --cert certs/6-application-one-bundle.pem --key certs/6-application-one-key
 
 curl --cert certs/7-application-two-bundle.pem --key certs/7-application-two-key.pem --cacert certs/1-server-ca-cert.pem  https://`hostname`:8010/api/v1/info
 ```
+
+A certificate which isn't signed by the client CA doesn't work. Nginx returns a 400 Bad Request.
+```bash
+curl --cert certs/3-server-cert-bundle.pem --key certs/3-server-key.pem --cacert certs/1-server-ca-cert.pem  https://`hostname`:8010/api/v1/info
+```
+
