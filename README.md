@@ -32,13 +32,13 @@ sudo docker compose up
 
 ## Retriving the data with curl
 
-Any HTTP client which can present a client certificate and check a server certificate against a private CA can be used to fetch data.
+Any HTTP client which can present a client certificate, and check a server certificate against a private CA, can be used to fetch data.
 
 `curl` is used in this example, run on the same machine as the `docker compose up` command. In the `curl` commands, `--cert` and `--key` specify the client certificate, and `--cacert` the CA which must be used to sign the server's certificate. The URL is formed using the output of `hostname`.
 
 To fetch the report, request the `/api/v1/supply-voltage` with a `period` query parameter, for which any value can be used.
 
-When the report is requested with a client certificate which encodes the `supply-voltage-reader@electricity` group in the certificate's subject, the server knows that the client is a participant in the Trust Framework with the role that is allowed to use the data:"
+When the report is requested with a client certificate which encodes the `supply-voltage-reader@electricity` group in the certificate's subject, the server knows that the client is a participant in the Trust Framework with the role that is allowed to use the data:
 
 ```bash
 curl --cert certs/6-application-one-bundle.pem --key certs/6-application-one-key.pem \
@@ -73,7 +73,7 @@ curl --cert certs/3-server-cert-bundle.pem --key certs/3-server-key.pem \
     https://`hostname`:8010/api/v1/info
 ```
 
-Nginx will returns a `400 Bad Request`. The resource server will not recieve the request, enforcing membership of the Trust Framework at the transport level.
+Nginx will returns a `400 Bad Request`. The resource server will not receive the request, enforcing membership of the Trust Framework at the transport level.
 
 ```
 <html>
@@ -100,7 +100,7 @@ curl --cert certs/6-application-one-bundle.pem --key certs/6-application-one-key
 
 This [script](scripts/certmaker.sh) generates two CAs and chains of certificates. The certificate trees are documented at the top of the file.
 
-Each of the two private CAs uses an intermediate certificate, which then signs the server or client certificates. This is so the key of the root CA certificate can be kept offline for security, so the root certificate can have a long lifetime. The intermediate Issuer certificates have a shorter lifetype, and their keys are kept online. These are then used to sign short lived certificates. In the event of compromise, the Issuer intermediate certificates can be easily replaced.
+Each of the two private CAs uses an intermediate certificate, which then signs the server or client certificates. This is so the key of the root CA certificate can be kept offline for security, enabling the root certificate to have a long lifetime. The intermediate Issuer certificates have a shorter lifetime, and their keys are kept online. These are then used to sign short lived certificates which are automatically renewed and installed, for example with an [ACME client](https://letsencrypt.org/docs/client-options/). In the event of compromise, the Issuer intermediate certificates can be easily replaced.
 
 Client certificate Subject names contain:
 * the organisation name,
