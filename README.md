@@ -100,16 +100,24 @@ curl --cert certs/6-application-one-bundle.pem --key certs/6-application-one-key
 
 This [script](scripts/certmaker.sh) generates two CAs and chains of certificates. The certificate trees are documented at the top of the file.
 
-Each of the two private CAs uses an intermediate certificate, which then signs the server or client certificates. This is so the key of the root CA certificate can be kept offline for security, enabling the root certificate to have a long lifetime. The intermediate Issuer certificates have a shorter lifetime, and their keys are kept online. These are then used to sign short lived certificates which are automatically renewed and installed, for example with an [ACME client](https://letsencrypt.org/docs/client-options/). In the event of compromise, the Issuer intermediate certificates can be easily replaced.
+Each of the two private CAs uses an intermediate certificate, which then signs the server or client certificates. This is so the key of the root CA certificate can be kept offline for security, enabling the root certificate to have a long lifetime. The intermediate Issuer certificates have a shorter lifetime, and their keys are kept online.
+
+The script creates certificate bundle files which combine a certificate and its intermediate Issuer into a single file. These are used in server and client software so that the intermediate is sent with the leaf certificate, providing the entire certificate chain to the root. Without the entire chain, the certificate cannot be verified.
+
+#### Server certificates
+
+The intermediate Issuer certificate is used to sign short lived server certificates. In a real deployment, these will be automatically renewed and installed, for example with an [ACME client](https://letsencrypt.org/docs/client-options/). In the event of compromise, the Issuer intermediate certificates can be easily replaced.
+
+So that certificates can be validated in the demo environment, the certificate uses the output of `hostname` for the server's certificate.
+
+#### Client certificates
+
+For ease of management, the client certificates have a long lifetime. They would typically be issued by the Directory through an API or user interface. 
 
 Client certificate Subject names contain:
 * the organisation name,
 * the OAuth client ID in the Common Name (CN), generated with `uuidgen`,
 * and the roles in one or more Organisational Unit Names (OU).
-
-For ease of management for clients, the client certificates have a long lifetime. They would typically be issued by the Directory through an API or user interface. 
-
-The script also combines each server and client certificate with its intermediate Issuer into certificate bundle files, so the client and server can both present all the certificates in the chain. Without providing the Issuer certificate, the certificate chains would not be able to be verified.
 
 ### nginx/default.conf.template
 
@@ -124,9 +132,9 @@ By requiring and verifying the client certificate, Nginx ensures that only Trust
 
 In a real deployment, the server would be configured to check for revocation of client certificates. The client does not need to check for revocation because the server certificates are replaced daily.
 
-### resource/main.py
+### resource/api/main.py
 
-Data Service API is implemented by a [FastAPI server](resource/main.py). Because most of the authentication is delegated to the Nginx proxy, it does not need to do anything to ensure that only a Trust Framework participant can call API endpoints.
+Data Service API is implemented by a [minimal server](resource/api/main.py). Because most of the authentication is delegated to the Nginx proxy, it does not need to do anything to ensure that only a Trust Framework participant can call API endpoints.
 
 However, it needs to verify that only participants with the right role can access the API. The `require_role()` method checks this by:
 
