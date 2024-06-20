@@ -1,14 +1,12 @@
 import json
 import os
 import random
-from cryptography import x509
-from cryptography.x509.oid import NameOID
 from urllib.parse import unquote
 from typing import Annotated
 
-from fastapi import FastAPI, HTTPException, Response, Depends, Header, Query
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from fastapi import Request
+from cryptography import x509
+from cryptography.x509.oid import NameOID
+from fastapi import FastAPI, HTTPException, Request, Header, Query
 
 from . import conf
 
@@ -57,7 +55,6 @@ def request_info(
 
 @app.get("/api/v1/supply-voltage")
 def request_supply_voltage(
-    request: Request,
     period: Annotated[str, Query()],
     x_amzn_mtls_clientcert: Annotated[str | None, Header()] = None,
 ):
