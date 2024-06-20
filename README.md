@@ -27,6 +27,12 @@ The included docker compose file will bring up
 To run the server, leave this command running:
 
 ```bash
+docker compose up
+```
+
+In some environments and depending on your Docker configuration, you will need to run this command with `sudo`:
+
+```bash
 sudo docker compose up
 ```
 
