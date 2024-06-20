@@ -14,7 +14,6 @@ ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
 app = FastAPI(
-    docs_url="/api-docs",
     title="Perseus Energy Demo Resource API",
     root_path=conf.OPEN_API_ROOT,
 )
