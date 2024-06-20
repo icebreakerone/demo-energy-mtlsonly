@@ -152,3 +152,12 @@ However, it needs to verify that only participants with the right role can acces
 
 To make changes to the resource server, run the proxy and resource server with `docker compose up`, as above. When you modify the Python files, the server will automatically be reloaded.
 
+## Running the tests
+
+To set up a Python virtual environment, install the dependencies, and run the resource API tests, run:
+
+```bash
+cd resource
+pipenv sync --dev
+pipenv run python -m pytest
+```
