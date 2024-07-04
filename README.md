@@ -122,7 +122,7 @@ For ease of management, the client certificates have a long lifetime. They would
 
 Client certificate Subject names contain:
 * the organisation name,
-* the OAuth client ID in the Common Name (CN), generated with `uuidgen`,
+* the OAuth client ID in the Common Name (CN), which is the client's URL in the Directory,
 * and the roles in one or more Organisational Unit Names (OU).
 
 ### nginx/default.conf.template
