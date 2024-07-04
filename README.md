@@ -1,153 +1,163 @@
-# Perseus demo energy provider
+# Perseus demo Data Source
 
-Emulates authentication and resource api endpoints for the Perseus demo. Authentication is built on top of [Ory Hydra](https://www.ory.sh).
+This demonstration provides a simple API to implement a Data Source, with mutual authentication via MTLS certificates, and role based authorisation based on information in the client certificate.
 
-## Authentication API
+## Setup and running the demo server
 
-The authentication app is in the [authentication](authentication) directory. It provides endpoints for authenticating and identifying users, and for handling and passing on requests from the client API to the FAPI API. It uses a
+### Creating demo certificate authority and certificates
 
-Authentication API documentation is available at https://perseus-demo-authentication.ib1.org/api-docs.
-
-## Resource API
-
-The resource api is in the [resource](resource) directory. It demonstrates how to protect an API endpoint using a certificate bound token obtained from the authentication API's interaction with the FAPI provider.
-
-Resource API documentation is available at https://perseus-demo-energy.ib1.org/api-docs.
-
-## Running a dev server
+The server and clients require a private server Certificate Authority (CA), a private client CA, and server and client certificates in a `certs/` folder. These can be generated using the `certmaker.sh` script in the `scripts` directory.
 
 ```bash
-cd authentication|resource
-pipenv install --dev
-pipenv run uvicorn api.main:app --reload
+mkdir certs
+cd certs/
+sh ../scripts/certmaker.sh 
+cd ..
 ```
 
-## Creating self-signed certificates
+The script generates the server's certificate with the hostname of the local computer for normal HTTPS validation, as output from `hostname`.
 
-The docker compose and client.py scripts require a set of self-signed certificates in a certs/ folder. These can be generated using the `certmaker.sh` script in the `scripts` directory.
+### Running the local docker environment
+
+The included docker compose file will bring up
+
+* the API resource server
+* an Nginx proxy, which checks the client certificate is valid and passes it to the resource server using the same header as AWS ALB (`x-amzn-mtls-clientcert`).
+
+To run the server, leave this command running:
 
 ```bash
-cd scripts
-./certmaker.sh
+docker compose up
 ```
 
-You will need to create a "certs" directory in the root of the project, and move the generated certificates into it.
-
-### Using client certificates
-
-Most of the endpoints require a client certificate to be presented. As the directory service is not yet available, the contents of the certificate will not be checked with an external, so any valid certificate will be acceptable. The certificate **is** used to confirm identity, so the same one must be presented in all requests.
-
-## Creating signing certificates
-
-A separate set of certificates are required for signing JWTs. These can be generated using the `signingcerts.sh` script in the `scripts` directory.
+In some environments and depending on your Docker configuration, you will need to run this command with `sudo`:
 
 ```bash
-cd scripts
-./signingcerts.sh
+sudo docker compose up
 ```
 
-The default configuration will expect these certificate to be in authentication/api/certs. The location can be changed by setting the DIRECTORY_CERTIFICATE and DIRECTORY_PRIVATE_KEY environment variables.
+## Retrieving the data with curl
 
-## Running the local docker environment
+Any HTTP client which can present a client certificate, and check a server certificate against a private CA, can be used to fetch data.
 
-The included docker compose file will bring up both APIs. It uses nginx to proxy requests to uvicorn, with nginx configuration to pass through client certificates to the backend, using the same header as used by AWS ALB (`x-amzn-mtls-clientcert`).
+`curl` is used in this example, run on the same machine as the `docker compose up` command. In the `curl` commands, `--cert` and `--key` specify the client certificate, and `--cacert` the CA which must be used to sign the server's certificate. The URL is formed using the output of `hostname`.
+
+To fetch the report, request the `/api/v1/supply-voltage` with a `period` query parameter, for which any value can be used.
+
+When the report is requested with a client certificate which encodes the `supply-voltage-reader@electricity` group in the certificate's subject, the server knows that the client is a participant in the Trust Framework with the role that is allowed to use the data:
 
 ```bash
-docker-compose up
+curl --cert certs/6-application-one-bundle.pem --key certs/6-application-one-key.pem \
+    --cacert certs/1-server-ca-cert.pem \
+    https://`hostname`:8010/api/v1/supply-voltage?period=2023-07
+```
+This returns
+
+```json
+{"period":"2023-07","voltages":[232,249,231,232,249,236,247,240,238,243,233,233,234,243,238,249]}
 ```
 
-The environment variables in the docker compose file point to the FAPI api running on localhost port 8020 (http://host.docker.internal:8020). As the FAPI api is not running in the docker environment, you may need to change these environment variables to match your local environment. It will also work with the live FAPI api by changing these values to "https://perseus-demo-authentication.ib1.org".
-
-## Pushed Authorization Request (PAR)
-
-As PAR is not available on the Ory Hydra service that this demo is based on, a PAR endpoint has been implemented in this example service. It is expected that production ipmlementations may use the PAR endpoint of their Fapi provider.
-
-In this simple implementation, the request is stored in a redis instance, using a token that matches Fapi requirements as the key.
-
-## Testing the API with client.py
-
-client.py can be used to test authorisation code flow, introspection, id_token decoding and retrieving data from the resource URL.
-
-Four commands are available, and are run using:
+However, if a client certificate is used which does not have this role, then an error is returned:
 
 ```bash
-python -W ignore  client.py [auth|introspect|id-token|resource]
+curl --cert certs/7-application-two-bundle.pem --key certs/7-application-two-key.pem \
+    --cacert certs/1-server-ca-cert.pem \
+    https://`hostname`:8010/api/v1/supply-voltage?period=2023-07
 ```
 
-nb. The optional `-W ignore` switch suppresses multiple warnings about the self-signed certificates.
+The resource server generates a 401 response with the body:
 
-### Auth
+```json
+{"detail":"Client certificate does not include role supply-voltage-reader@electricity"}
+```
 
-Running `client.py auth` will perform the initial steps in the authorisation code flow, outputting a URL that will open the UI to log in and confirm consent. The PKCE code verifier will also be in the output, which will be needed after the redirect
+Finally, if the client presents a certificate which isn't signed by the client CA:
 
 ```bash
-python -W ignore  client.py auth
+curl --cert certs/3-server-cert-bundle.pem --key certs/3-server-key.pem \
+    --cacert certs/1-server-ca-cert.pem \
+    https://`hostname`:8010/api/v1/info
 ```
 
-Example output:
+Nginx will returns a `400 Bad Request`. The resource server will not receive the request, enforcing membership of the Trust Framework at the transport level.
+
+```
+<html>
+<head><title>400 The SSL certificate error</title></head>
+<body>
+<center><h1>400 Bad Request</h1></center>
+<center>The SSL certificate error</center>
+...
+```
+
+## Information API
+
+The resource server also implements an `info` API which returns information about the request and client certificate.
 
 ```bash
-Code verifier: c6P-FfD0ayLslzCUESCsay8QHEg71O0SnKLeHPkOSyOZ6KubKPRaclM4u5veKcqI7MNqZX_xAUt4CUwIwm4JD99EacbtjAABbyY1i972umU9Ong9HFjtJq84y5mljGFy
-https://vigorous-heyrovsky-1trvv0ikx9.projects.oryapis.com/oauth2/auth?client_id=f67916ce-de33-4e2f-a8e3-cbd5f6459c30&response_type=code&redirect_uri=http://127.0.0.1:3000/callback&scope=profile+offline_access&state=9mpb2gDwhp2fLTa_MwJGM21R7FjOQCJq&code_challenge=cksXMlSWrcflDTJoyrpiWX0u2VRV6C--pzetmBIo6LQ&code_challenge_method=S256
+curl --cert certs/6-application-one-bundle.pem --key certs/6-application-one-key.pem \
+    --cacert certs/1-server-ca-cert.pem \
+    https://`hostname`:8010/api/v1/info
 ```
 
-By default the client will use the local docker environment and expects a local instance of the FAPI api to be running on localhost:8020. Testing against the deployed API can be achieved by setting the `AUTHENTICATION_API` and `RESOURCE_API` environment variables, and optionally the FAPI_API environment variable.
+## Guided tour
+
+### scripts/certmaker.sh
+
+This [script](scripts/certmaker.sh) generates two CAs and chains of certificates. The certificate trees are documented at the top of the file.
+
+Each of the two private CAs uses an intermediate certificate, which then signs the server or client certificates. This is so the key of the root CA certificate can be kept offline for security, enabling the root certificate to have a long lifetime. The intermediate Issuer certificates have a shorter lifetime, and their keys are kept online.
+
+The script creates certificate bundle files which combine a certificate and its intermediate Issuer into a single file. These are used in server and client software so that the intermediate is sent with the leaf certificate, providing the entire certificate chain to the root. Without the entire chain, the certificate cannot be verified.
+
+#### Server certificates
+
+The intermediate Issuer certificate is used to sign short lived server certificates. In a real deployment, these will be automatically renewed and installed, for example with an [ACME client](https://letsencrypt.org/docs/client-options/). In the event of compromise, the Issuer intermediate certificates can be easily replaced.
+
+So that certificates can be validated in the demo environment, the certificate uses the output of `hostname` for the server's certificate.
+
+#### Client certificates
+
+For ease of management, the client certificates have a long lifetime. They would typically be issued by the Directory through an API or user interface. 
+
+Client certificate Subject names contain:
+* the organisation name,
+* the OAuth client ID in the Common Name (CN), which is the client's URL in the Directory,
+* and the roles in one or more Organisational Unit Names (OU).
+
+### nginx/default.conf.template
+
+This [configuration file](nginx/default.conf.template):
+
+* sets the server certificate using the combined certificate and issuer file,
+* sets the client Certificate Authority to the private client CA, and requires that any client presents a valid certificate signed by this CA,
+* sets the `x-amzn-mtls-clientcert` header to the client certificate presented,
+* and proxies the unencrypted request to the resource server.
+
+By requiring and verifying the client certificate, Nginx ensures that only Trust Framework participants can make requests to the underlying resource server.
+
+In a real deployment, the server would be configured to check for revocation of client certificates. The client does not need to check for revocation because the server certificates are replaced daily.
+
+### resource/api/main.py
+
+Data Service API is implemented by a [minimal server](resource/api/main.py). Because most of the authentication is delegated to the Nginx proxy, it does not need to do anything to ensure that only a Trust Framework participant can call API endpoints.
+
+However, it needs to verify that only participants with the right role can access the API. The `require_role()` method checks this by:
+
+* Decoding the client certificate from the `x-amzn-mtls-clientcert` header. It can rely on this certificate being valid and signed by the private client CA.
+* Decoding the roles from the certificate's Subject attribute.
+* Raising an exception if the expected role is not present in the certificate.
+
+## Modifying the resource server
+
+To make changes to the resource server, run the proxy and resource server with `docker compose up`, as above. When you modify the Python files, the server will automatically be reloaded.
+
+## Running the tests
+
+To set up a Python virtual environment, install the dependencies, and run the resource API tests, run:
 
 ```bash
-FAPI_API=https://perseus-demo-authentication.ib1.org AUTHENTICATION_API="https://perseus-demo-authentication.ib1.org" RESOURCE_API=https://perseus-demo-energy.ib1.org python -W ignore  client.py auth
+cd resource
+pipenv sync --dev
+pipenv run python -m pytest
 ```
-
-Opening the redirect url will present you with the default Ory Hydra log in/ sign up screen, followed by a consent screen:
-
-![Consent screen](docs/consent.png)
-
-Granting consent will redirect to our demo client application, with the authorisation code appended to the url. The authorisation code can be exchanged for an access token by adding the code_verifier value to the form and submitting:
-
-![Redirect](docs/exchange.png)
-
-### Introspection
-
-To show the response of the introspection endpoint, run:
-
-```bash
-python -W ignore  client.py introspect --token <token>
-```
-
-with token being the `token` value obtained from authorisation code flow
-
-### Client side id_token decoding
-
-To show the response of client side id_token decoding, run:
-
-```bash
-python -W ignore  client.py id-token --token <token>
-```
-
-with token being the `id_token` value obtained from authorisation code flow
-
-### Retrieve data from protected endpoint
-
-```bash
-python -W ignore  client.py resource --token <token>
-```
-
-## Ory Hydra
-
-Please contact IB1 for the Client ID and secret if you would like to test against our demo Ory account. Alternatively you can set up a free developer account and create an Oauth2 client with your own details. The client should have:
-
-- Authentication method set to None
-- Grant types Authorisation Code and Refresh Token
-- Response types Code and ID Token
-- Access Token Type jwt
-- Scopes profile and offline_access
-- Redirect urls to match your production and/or development and local redirect URLs
-
-![Authentication Method None](docs/authentication-method-none.png)
-
-![Grant Types and Response Types](docs/supported-flows.png)
-
-![Scopes and redirecs](docs/scope-redirects.png)
-
-## FAPI Flow
-
-![FAPI Flow diagram](docs/fapi-authlete-flow.png)

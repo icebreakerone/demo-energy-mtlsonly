@@ -9,22 +9,26 @@ server {
     listen 443 ssl;
     server_name localhost;
     # add hosts your domain for local requests
-    # server certificate
-    ssl_certificate     /etc/nginx/certs/server-cert.pem;
-    ssl_certificate_key /etc/nginx/certs/server-key.pem;
-    # CA certificate
-    ssl_client_certificate /etc/nginx/certs/ca-cert.pem;
-    # need to validate client certificate(if this flag optional_no_ca it won't validate client certificates)
-    ssl_verify_client optional_no_ca;
+
+    # server certificate (bundle includes the intermediate)
+    ssl_certificate     /etc/nginx/certs/3-server-cert-bundle.pem;
+    ssl_certificate_key /etc/nginx/certs/3-server-key.pem;
+
+    # Client certificates must be signed by this CA (via the intermediate)
+    ssl_client_certificate /etc/nginx/certs/4-client-ca-cert.pem;
+
+    # Require a valid client certificate before a request is proxied
+    ssl_verify_client on;
+
     location / {
+        # Add headers to proxied request
         # remote ip and forwarding ip
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        # Send the client certificate in the same way as AWS
         proxy_set_header X-Amzn-Mtls-Clientcert $ssl_client_escaped_cert;
-        # # certificate verification information
-        # # if the client certificate verified 
-        # # will have the value of 'SUCCESS' and 'NONE' otherwise
-        proxy_set_header VERIFIED $ssl_client_verify;
+
+        # Proxy requests to resource server
         proxy_pass http://${UPSTREAM}:8080;
     }
 }

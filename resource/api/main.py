@@ -1,22 +1,19 @@
 import json
 import os
+import random
+from urllib.parse import unquote
 from typing import Annotated
 
-from fastapi import FastAPI, HTTPException, Response, Depends, Header
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from fastapi import Request
+from cryptography import x509
+from cryptography.x509.oid import NameOID
+from fastapi import FastAPI, HTTPException, Request, Header, Query
 
-from . import models
-from . import auth
 from . import conf
 
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
-security = HTTPBearer(auto_error=False)
-
 
 app = FastAPI(
-    docs_url="/api-docs",
     title="Perseus Energy Demo Resource API",
     root_path=conf.OPEN_API_ROOT,
 )
@@ -32,13 +29,15 @@ def api_urls():
     return {"urls": ["/api/v1/consumption"]}
 
 
-# @app.get("/api/v1/info")
 @app.get("/api/v1/info")
-def request_info(request: Request):
+def request_info(
+    request: Request,
+    x_amzn_mtls_clientcert: Annotated[str | None, Header()] = None,
+):
     """Return full details about the received request, including http and https headers
     Useful for testing and debugging
     """
-    return {
+    response = {
         "request": {
             "headers": dict(request.headers),
             "method": request.method,
@@ -47,29 +46,40 @@ def request_info(request: Request):
         },
         # "environ": str(request.environ),
     }
+    if x_amzn_mtls_clientcert is not None:
+        cert = x509.load_pem_x509_certificate(bytes(unquote(x_amzn_mtls_clientcert), 'utf-8'))
+        response["client_subject"] = cert.subject.rfc4514_string()
+    return response
 
 
-@app.get("/api/v1/consumption", response_model=models.MeterData)
-def consumption(
-    response: Response,
-    token: HTTPAuthorizationCredentials = Depends(security),
+@app.get("/api/v1/supply-voltage")
+def request_supply_voltage(
+    period: Annotated[str, Query()],
     x_amzn_mtls_clientcert: Annotated[str | None, Header()] = None,
-    x_fapi_interaction_id: Annotated[str | None, Header()] = None,
 ):
-    if x_amzn_mtls_clientcert is None:
+    # Check the certificate includes the right role.
+    require_role("supply-voltage-reader@electricity", x_amzn_mtls_clientcert)
+
+    # Generate a random report.
+    random.seed(period)
+    response = {
+        "period": period,
+        "voltages": [int(230.0+(random.random()*20)) for x in range(16)]
+    }
+    return response
+
+
+def require_role(role_name, quoted_certificate):
+    """Check that the certificate presented by the client includes the given role,
+    throwing an exception if the requirement isn't met. Assumes the proxy has verified
+    the certificate.
+    """
+    # Belt and braces check to make sure the proxy is configured correctly.
+    if quoted_certificate is None:
         raise HTTPException(status_code=401, detail="No client certificate provided")
-    if token and token.credentials:
-        try:
-            _, headers = auth.introspect(
-                x_amzn_mtls_clientcert, token.credentials, x_fapi_interaction_id
-            )
-        except auth.AccessTokenValidatorError as e:
-            raise HTTPException(status_code=401, detail=str(e))
-        else:
-            for key, value in headers.items():
-                response.headers[key] = value
-    else:
-        raise HTTPException(status_code=401, detail="No token provided")
-    with open(f"{ROOT_DIR}/data/7_day_consumption.json") as f:
-        data = json.load(f)
-    return {"data": data}
+    # Extrace a list of roles from the certificate
+    cert = x509.load_pem_x509_certificate(bytes(unquote(quoted_certificate), 'utf-8'))
+    roles = [ou.value for ou in cert.subject.get_attributes_for_oid(NameOID.ORGANIZATIONAL_UNIT_NAME)]
+    # Check the given role is included in the list of client's roles
+    if role_name not in roles:
+        raise HTTPException(status_code=401, detail="Client certificate does not include role "+role_name)

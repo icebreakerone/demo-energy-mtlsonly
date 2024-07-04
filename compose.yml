@@ -1,40 +1,4 @@
 services:
-  authentication_web:
-    image: nginx
-    volumes:
-      - ./nginx:/etc/nginx/templates
-      - ./certs/:/etc/nginx/certs/
-    environment:
-      - UPSTREAM=authentication_backend
-    ports:
-      - 8000:443
-      # - 443:443
-    command: [nginx-debug, "-g", "daemon off;"]
-    depends_on:
-      - authentication_backend
-
-  authentication_backend:
-    build:
-      context: authentication
-    stop_signal: SIGINT
-    env_file: authentication/.env
-    environment:
-      - FAPI_API=http://host.docker.internal:8020
-      - REDIS_HOST=redis
-      # - FAPI_API=https://perseus-demo-fapi.ib1.org
-    command:
-      [
-        "uvicorn",
-        "api.main:app",
-        "--host",
-        "0.0.0.0",
-        "--port",
-        "8080",
-        "--reload",
-      ]
-    volumes:
-      - ./authentication/api:/code/api
-
   resource_web:
     image: nginx
     volumes:
@@ -52,8 +16,6 @@ services:
       context: resource
     stop_signal: SIGINT
     env_file: resource/.env
-    environment:
-      - ISSUER_URL=https://host.docker.internal:8000 # As accounting app is outside docker we'll need to use this address
     command:
       [
         "uvicorn",
@@ -66,14 +28,3 @@ services:
       ]
     volumes:
       - ./resource/api:/code/api
-
-  redis:
-    image: "redis:alpine"
-    command: redis-server
-    ports:
-      - "6379:6379"
-    volumes:
-      - $PWD/redis-data:/var/lib/redis
-      - $PWD/redis.conf:/usr/local/etc/redis/redis.conf
-    environment:
-      - REDIS_REPLICATION_MODE=master

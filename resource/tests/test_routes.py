@@ -1,5 +1,6 @@
 
 import pytest
+import fastapi
 from fastapi.testclient import TestClient
 from tests  import cert_response
 from api.main import app
@@ -7,24 +8,17 @@ from api.main import app
 client = TestClient(app)
 
 
-
-
-@pytest.fixture
-def mock_introspect(mocker):
-    return mocker.patch("api.main.auth.introspect")
-
-def test_consumption_no_token():
-    response = client.get("/api/v1/consumption")
-    assert response.status_code == 401
-
-def test_consumption_bad_token():
-    response = client.get("/api/v1/consumption", headers={'Authorization': 'Bearer'})
-    assert response.status_code == 401
-
-def test_consumption(mock_introspect):
+def test_report_authorised():
     """
-    If introspection is successful, return data and 200
+    If certificate has right role, return data and 200
     """
-    mock_introspect.return_value = ({}, {})
-    response = client.get("/api/v1/consumption", headers={'Authorization': 'Bearer abc123', 'x-amzn-mtls-clientcert': cert_response(urlencoded=True)})
+    response = client.get("/api/v1/supply-voltage?period=ABC", headers={'x-amzn-mtls-clientcert': cert_response(cert_file="cert1.pem", urlencoded=True)})
     assert response.status_code == 200
+
+
+def test_report_unauthorised():
+    """
+    If the certificate does not contain the role, return a 401
+    """
+    response = client.get("/api/v1/supply-voltage?period=ABC", headers={'x-amzn-mtls-clientcert': cert_response(cert_file="cert2.pem", urlencoded=True)})
+    assert response.status_code == 401

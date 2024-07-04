@@ -1,34 +1,40 @@
 import pytest
 
-import api.auth
+from fastapi.exceptions import HTTPException
 
-from tests import cert_response, introspection_response
-
-
-@pytest.fixture
-def mock_parse_request(mocker):
-    return mocker.patch("api.auth.parse_cert")
+from tests import cert_response
+from api.main import require_role
 
 
-@pytest.fixture
-def mock_check_token(mocker):
-    return mocker.patch("api.auth.check_token")
+def test_role_in_certificate():
+    cert_urlencoded = cert_response(cert_file="cert1.pem", urlencoded=True)
+    require_role("supply-voltage-reader@electricity", cert_urlencoded)
+    require_role("reporter@electricity", cert_urlencoded)
 
 
-def test_introspect(mock_check_token):
-    # mock_parse_request.return_value = cert_response()
-    mock_check_token.return_value = introspection_response()
-    result = api.auth.introspect(cert_response(urlencoded=True), "any-token")
-    assert "x-fapi-interaction-id" in result[1]
+def test_role_not_in_certificate():
+    cert_urlencoded = cert_response(cert_file="cert2.pem", urlencoded=True)
+    with pytest.raises(HTTPException):
+        require_role("supply-voltage-reader@electricity", cert_urlencoded)
 
 
-def test_introspect_certificate_fails(mock_check_token):
-    mock_check_token.return_value = introspection_response()
-    with pytest.raises(api.auth.AccessTokenNoCertificateError):
-        api.auth.introspect(None, "any-token")
+def test_certificate_with_no_roles():
+    cert_urlencoded = cert_response(cert_file="cert3.pem", urlencoded=True)
+    with pytest.raises(HTTPException):
+        require_role("supply-voltage-reader@electricity", cert_urlencoded)
 
 
-def test_introspect_active_fail(mock_check_token):
-    mock_check_token.return_value = introspection_response(active=False)
-    with pytest.raises(api.auth.AccessTokenInactiveError):
-        api.auth.introspect(cert_response(urlencoded=True), "any-token")
+def test_empty_role():
+    cert_urlencoded = cert_response(cert_file="cert1.pem", urlencoded=True)
+    with pytest.raises(HTTPException):
+        require_role("", cert_urlencoded)
+
+
+def test_no_certificate_supplied():
+    with pytest.raises(HTTPException):
+        require_role("supply-voltage-reader@electricity", None)
+
+
+def test_bad_certificate():
+    with pytest.raises(ValueError):
+        require_role("supply-voltage-reader@electricity", "Not a PEM encoded certificate")
