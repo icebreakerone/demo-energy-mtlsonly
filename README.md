@@ -36,7 +36,7 @@ In some environments and depending on your Docker configuration, you will need t
 sudo docker compose up
 ```
 
-## Retriving the data with curl
+## Retrieving the data with curl
 
 Any HTTP client which can present a client certificate, and check a server certificate against a private CA, can be used to fetch data.
 
