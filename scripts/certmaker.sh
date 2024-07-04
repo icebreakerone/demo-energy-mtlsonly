@@ -9,6 +9,12 @@
 #          6. Application One (roles: supply-voltage-reader, reporter)
 #          7. Application Two (roles: consumption-reader, reporter)
 
+if ! which openssl
+then
+    echo "openssl must be in your PATH" >&2
+    exit 1
+fi
+
 # 1. Energy Sector Trust Framework Server CA
 openssl genpkey -algorithm RSA -out 1-server-ca-key.pem
 openssl req -new -x509 -key 1-server-ca-key.pem -out 1-server-ca-cert.pem -days 3560 \
