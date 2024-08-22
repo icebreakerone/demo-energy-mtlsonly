@@ -5,6 +5,7 @@ from urllib.parse import unquote
 from typing import Annotated
 
 from cryptography import x509
+from cryptography.x509 import ObjectIdentifier
 from cryptography.x509.oid import NameOID
 from fastapi import FastAPI, HTTPException, Request, Header, Query
 
@@ -58,7 +59,7 @@ def request_supply_voltage(
     x_amzn_mtls_clientcert: Annotated[str | None, Header()] = None,
 ):
     # Check the certificate includes the right role.
-    require_role("supply-voltage-reader@electricity", x_amzn_mtls_clientcert)
+    require_role("https://registry.estf.ib1.org/scheme/electricty/role/supply-voltage-reader", x_amzn_mtls_clientcert)
 
     # Generate a random report.
     random.seed(period)
@@ -79,7 +80,7 @@ def require_role(role_name, quoted_certificate):
         raise HTTPException(status_code=401, detail="No client certificate provided")
     # Extrace a list of roles from the certificate
     cert = x509.load_pem_x509_certificate(bytes(unquote(quoted_certificate), 'utf-8'))
-    roles = [ou.value for ou in cert.subject.get_attributes_for_oid(NameOID.ORGANIZATIONAL_UNIT_NAME)]
+    roles = cert.extensions.get_extension_for_oid(ObjectIdentifier("1.2.3.4.5.6.7.8")).value.value.decode(encoding='utf-8', errors='strict').split(' ')
     # Check the given role is included in the list of client's roles
     if role_name not in roles:
         raise HTTPException(status_code=401, detail="Client certificate does not include role "+role_name)

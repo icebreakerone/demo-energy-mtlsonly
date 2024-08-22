@@ -1,0 +1,29 @@
+[roles1]
+1.2.3.4.5.6.7.8=DER:68747470733a2f2f72656769737472792e657374662e6962312e6f72672f736368656d652f656c65637472696374792f726f6c652f737570706c792d766f6c746167652d7265616465722068747470733a2f2f72656769737472792e657374662e6962312e6f72672f736368656d652f656c65637472696374792f726f6c652f7265706f72746572
+1.2.3.4.5.6.7.9=DER:68747470733a2f2f6469726563746f72792e657374662e6962312e6f72672f736368656d652f656c65637472696374792f6170706c69636174696f6e2f3338393336343535
+
+# Hex values generated with:
+# echo -n "https://registry.estf.ib1.org/scheme/electricty/role/supply-voltage-reader https://registry.estf.ib1.org/scheme/electricty/role/reporter" | od -A n -t x1 | sed 's/ *//g'
+# echo -n https://directory.estf.ib1.org/scheme/electricty/application/38936455 | od -A n -t x1 | sed 's/ *//g'
+
+# ---------------------------------------------------------------------------
+
+[roles2]
+1.2.3.4.5.6.7.8=DER:68747470733a2f2f72656769737472792e657374662e6962312e6f72672f736368656d652f656c65637472696374792f726f6c652f636f6e73756d7074696f6e2d7265616465722068747470733a2f2f72656769737472792e657374662e6962312e6f72672f736368656d652f656c65637472696374792f726f6c652f7265706f72746572
+1.2.3.4.5.6.7.9=DER:68747470733a2f2f6469726563746f72792e657374662e6962312e6f72672f736368656d652f656c65637472696374792f6170706c69636174696f6e2f3236323431
+
+# echo -n "https://registry.estf.ib1.org/scheme/electricty/role/consumption-reader https://registry.estf.ib1.org/scheme/electricty/role/reporter" | od -A n -t x1 | sed 's/ *//g'
+# echo -n https://directory.estf.ib1.org/scheme/electricty/application/26241 | od -A n -t x1 | sed 's/ *//g'
+
+# ---------------------------------------------------------------------------
+
+# Alternatively these can be done as ASN.1 structures, which is the expected way in certificate extensions
+
+[roles-asn1]
+1.2.3.4.5.6.7.8=ASN1:SEQUENCE:role_values
+1.2.3.4.5.6.7.9=ASN1:UTF8:https://directory.estf.ib1.org/scheme/electricty/application/38936455
+
+[role_values]
+value.1=UTF8:https://registry.estf.ib1.org/scheme/electricty/group/carbon-accounting
+value.2=UTF8:https://registry.estf.ib1.org/scheme/electricty/group/reporter
+
