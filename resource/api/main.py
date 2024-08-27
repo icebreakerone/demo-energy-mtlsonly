@@ -80,7 +80,7 @@ def require_role(role_name, quoted_certificate):
         raise HTTPException(status_code=401, detail="No client certificate provided")
     # Extrace a list of roles from the certificate
     cert = x509.load_pem_x509_certificate(bytes(unquote(quoted_certificate), 'utf-8'))
-    roles = cert.extensions.get_extension_for_oid(ObjectIdentifier("1.2.3.4.5.6.7.8")).value.value.decode(encoding='utf-8', errors='strict').split(' ')
+    roles = cert.extensions.get_extension_for_oid(ObjectIdentifier("1.3.6.1.4.1.62329.1.1")).value.value.decode(encoding='utf-8', errors='strict').split(' ')
     # Check the given role is included in the list of client's roles
     if role_name not in roles:
         raise HTTPException(status_code=401, detail="Client certificate does not include role "+role_name)
