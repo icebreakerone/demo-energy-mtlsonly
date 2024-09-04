@@ -44,7 +44,7 @@ Any HTTP client which can present a client certificate, and check a server certi
 
 To fetch the report, request the `/api/v1/supply-voltage` with a `period` query parameter, for which any value can be used.
 
-When the report is requested with a client certificate which encodes the `supply-voltage-reader@electricity` group in the certificate's subject, the server knows that the client is a participant in the Trust Framework with the role that is allowed to use the data:
+When the report is requested with a client certificate which encodes the `supply-voltage-reader` role's URL in the certificate's subject, the server knows that the client is a participant in the Trust Framework with the role that is allowed to use the data:
 
 ```bash
 curl --cert certs/6-application-one-bundle.pem --key certs/6-application-one-key.pem \
@@ -68,7 +68,8 @@ curl --cert certs/7-application-two-bundle.pem --key certs/7-application-two-key
 The resource server generates a 401 response with the body:
 
 ```json
-{"detail":"Client certificate does not include role supply-voltage-reader@electricity"}
+{"detail":"Client certificate does not include role
+    https://registry.estf.ib1.org/scheme/electricty/role/supply-voltage-reader"}
 ```
 
 Finally, if the client presents a certificate which isn't signed by the client CA:
@@ -121,9 +122,14 @@ So that certificates can be validated in the demo environment, the certificate u
 For ease of management, the client certificates have a long lifetime. They would typically be issued by the Directory through an API or user interface. 
 
 Client certificate Subject names contain:
+
 * the organisation name,
-* the OAuth client ID in the Common Name (CN), which is the client's URL in the Directory,
-* and the roles in one or more Organisational Unit Names (OU).
+* the OAuth client ID in the Common Name (CN), which is the client's URL in the Directory.
+
+Custom x509 certificate extensions with Icebreaker One OIDs are used to encode:
+
+* The Application which is using the data, as a Directory URL, and
+* the client's Roles, as one or more Registry URLs.
 
 ### nginx/default.conf.template
 
