@@ -5,10 +5,12 @@ from urllib.parse import unquote
 from typing import Annotated
 
 from cryptography import x509
+from cryptography.x509 import ObjectIdentifier
 from cryptography.x509.oid import NameOID
+from cryptography.hazmat.backends import default_backend
 from fastapi import FastAPI, HTTPException, Request, Header, Query
-
 from . import conf
+from . import certificate_extensions
 
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
@@ -47,7 +49,9 @@ def request_info(
         # "environ": str(request.environ),
     }
     if x_amzn_mtls_clientcert is not None:
-        cert = x509.load_pem_x509_certificate(bytes(unquote(x_amzn_mtls_clientcert), 'utf-8'))
+        cert = x509.load_pem_x509_certificate(
+            bytes(unquote(x_amzn_mtls_clientcert), "utf-8")
+        )
         response["client_subject"] = cert.subject.rfc4514_string()
     return response
 
@@ -58,13 +62,16 @@ def request_supply_voltage(
     x_amzn_mtls_clientcert: Annotated[str | None, Header()] = None,
 ):
     # Check the certificate includes the right role.
-    require_role("supply-voltage-reader@electricity", x_amzn_mtls_clientcert)
+    require_role(
+        "https://registry.estf.ib1.org/scheme/electricty/role/supply-voltage-reader",
+        x_amzn_mtls_clientcert,
+    )
 
     # Generate a random report.
     random.seed(period)
     response = {
         "period": period,
-        "voltages": [int(230.0+(random.random()*20)) for x in range(16)]
+        "voltages": [int(230.0 + (random.random() * 20)) for x in range(16)],
     }
     return response
 
@@ -77,9 +84,25 @@ def require_role(role_name, quoted_certificate):
     # Belt and braces check to make sure the proxy is configured correctly.
     if quoted_certificate is None:
         raise HTTPException(status_code=401, detail="No client certificate provided")
-    # Extrace a list of roles from the certificate
-    cert = x509.load_pem_x509_certificate(bytes(unquote(quoted_certificate), 'utf-8'))
-    roles = [ou.value for ou in cert.subject.get_attributes_for_oid(NameOID.ORGANIZATIONAL_UNIT_NAME)]
-    # Check the given role is included in the list of client's roles
+    # Extract a list of roles from the certificate
+    cert = x509.load_pem_x509_certificate(
+        bytes(unquote(quoted_certificate), "utf-8"), default_backend()
+    )
+    try:
+        role_der = cert.extensions.get_extension_for_oid(
+            ObjectIdentifier("1.3.6.1.4.1.62329.1.1")
+        ).value.value
+    except x509.ExtensionNotFound:
+        raise HTTPException(
+            status_code=401,
+            detail="Client certificate does not include role information",
+        )
+    roles = certificate_extensions.decode(
+        der_bytes=role_der,
+    )
+
     if role_name not in roles:
-        raise HTTPException(status_code=401, detail="Client certificate does not include role "+role_name)
+        raise HTTPException(
+            status_code=401,
+            detail="Client certificate does not include role " + role_name,
+        )
